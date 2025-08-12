@@ -1,5 +1,4 @@
 provider "azurerm" {
-  subscription_id = "eedea4b7-9139-440d-84b1-0b09522f109e"
   features {}
 }
 
@@ -8,16 +7,6 @@ resource "azurerm_resource_group" "demo" {
   location = "germanywestcentral"
   tags = {
   }
-}
-
-
-data "azurerm_virtual_network" "aks" {
-  name                = "aks-vnet"
-  resource_group_name = "aks-dev"
-}
-
-output "vnetinfo" {
-  value = data.azurerm_virtual_network.aks
 }
 
 resource "azurerm_storage_account" "state" {
