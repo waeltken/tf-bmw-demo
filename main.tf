@@ -125,10 +125,19 @@ module "audiocodes_vm2" {
   subnet_id           = azurerm_subnet.internal.id
 }
 
+module "audiocodes_vm3" {
+  source              = "./modules/virtualmachine"
+  location            = azurerm_resource_group.demo.location
+  prefix              = "bmw3"
+  resource_group_name = azurerm_resource_group.demo.name
+  subnet_id           = azurerm_subnet.internal.id
+}
+
 output "initial_admin_passwords" {
   sensitive = true
   value = [
     module.audiocodes_vm1.initial_admin_password,
-    module.audiocodes_vm2.initial_admin_password
+    module.audiocodes_vm2.initial_admin_password,
+    module.audiocodes_vm3.initial_admin_password
   ]
 }
