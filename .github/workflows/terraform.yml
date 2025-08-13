@@ -19,7 +19,7 @@ jobs:
       ARM_CLIENT_ID: ${env.ARM_CLIENT_ID}
       ARM_SUBSCRIPTION_ID: ${env.ARM_SUBSCRIPTION_ID}
       ARM_TENANT_ID: ${env.ARM_TENANT_ID}
-      
+      ARM_USE_OIDC: true
 
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
