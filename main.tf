@@ -120,8 +120,6 @@ module "audiocodes_vm1" {
 output "initial_admin_passwords" {
   sensitive = true
   value = [
-    module.audiocodes_vm1.initial_admin_password,
-    module.audiocodes_vm2.initial_admin_password,
-    module.audiocodes_vm3.initial_admin_password
+    module.audiocodes_vm1.initial_admin_password
   ]
 }
