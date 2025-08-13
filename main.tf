@@ -12,13 +12,19 @@ variable "admin_username" {
   description = "The username for the admin account on the VM."
 }
 
-locals {
-  vm_name = "${var.prefix}-vm"
+variable "accept_agreement" {
+  default = true
 }
 
-resource "random_password" "admin_password" {
-  length  = 24
-  special = true
+resource "azurerm_marketplace_agreement" "audiocodes" {
+  count     = var.accept_agreement ? 1 : 0
+  publisher = "audiocodes"
+  offer     = "mediantsessionbordercontroller"
+  plan      = "mediantvesbcazure"
+}
+
+locals {
+  vm_name = "${var.prefix}-vm"
 }
 
 resource "azurerm_resource_group" "demo" {
@@ -29,7 +35,7 @@ resource "azurerm_resource_group" "demo" {
 }
 
 resource "azurerm_storage_account" "state" {
-  name                            = "testbmw1234storage"
+  name                            = "test${var.prefix}1234storage"
   location                        = azurerm_resource_group.demo.location
   resource_group_name             = azurerm_resource_group.demo.name
   account_tier                    = "Standard"
@@ -104,75 +110,25 @@ resource "azurerm_subnet" "internal" {
   address_prefixes     = ["10.0.2.0/24"]
 }
 
-resource "azurerm_public_ip" "main" {
-  allocation_method   = "Static"
-  name                = "${var.prefix}-public-ip"
+module "audiocodes_vm1" {
+  source              = "./modules/virtualmachine"
   location            = azurerm_resource_group.demo.location
   resource_group_name = azurerm_resource_group.demo.name
+  subnet_id           = azurerm_subnet.internal.id
 }
 
-resource "azurerm_network_interface" "main" {
-  name                = "${var.prefix}-nic"
+module "audiocodes_vm2" {
+  source              = "./modules/virtualmachine"
   location            = azurerm_resource_group.demo.location
+  prefix              = "bmw2"
   resource_group_name = azurerm_resource_group.demo.name
-
-  ip_configuration {
-    name                          = "testconfiguration1"
-    subnet_id                     = azurerm_subnet.internal.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.main.id
-  }
+  subnet_id           = azurerm_subnet.internal.id
 }
 
-resource "azurerm_marketplace_agreement" "audiocodes" {
-  publisher = "audiocodes"
-  offer     = "mediantsessionbordercontroller"
-  plan      = "mediantvesbcazure"
-}
-
-resource "azurerm_virtual_machine" "audiocodes" {
-  name                  = local.vm_name
-  location              = azurerm_resource_group.demo.location
-  resource_group_name   = azurerm_resource_group.demo.name
-  network_interface_ids = [azurerm_network_interface.main.id]
-  vm_size               = "Standard_DS1_v2"
-
-  delete_os_disk_on_termination = true
-
-  storage_image_reference {
-    publisher = "audiocodes"
-    offer     = "mediantsessionbordercontroller"
-    sku       = "mediantvesbcazure"
-    version   = "latest"
-  }
-
-  plan {
-    name      = "mediantvesbcazure"
-    product   = "mediantsessionbordercontroller"
-    publisher = "audiocodes"
-  }
-
-
-  os_profile {
-    admin_username = var.admin_username
-    admin_password = random_password.admin_password.result
-    computer_name  = "ubuntu"
-  }
-
-  storage_os_disk {
-    name          = "${local.vm_name}-osdisk"
-    caching       = "ReadWrite"
-    create_option = "FromImage"
-  }
-
-  os_profile_linux_config {
-    disable_password_authentication = false
-  }
-
-  depends_on = [azurerm_marketplace_agreement.audiocodes]
-}
-
-output "initial_admin_password" {
+output "initial_admin_passwords" {
   sensitive = true
-  value     = random_password.admin_password.result
+  value = [
+    module.audiocodes_vm1.initial_admin_password,
+    module.audiocodes_vm2.initial_admin_password
+  ]
 }
