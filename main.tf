@@ -3,7 +3,28 @@ provider "azurerm" {
 }
 
 variable "prefix" {
-  default = "bmw"
+  default     = "bmw"
+  description = "Prefix for all resources in this configuration."
+}
+
+variable "admin_username" {
+  default     = "azureuser"
+  description = "The username for the admin account on the VM."
+}
+
+variable "accept_agreement" {
+  default = true
+}
+
+resource "azurerm_marketplace_agreement" "audiocodes" {
+  count     = var.accept_agreement ? 1 : 0
+  publisher = "audiocodes"
+  offer     = "mediantsessionbordercontroller"
+  plan      = "mediantvesbcazure"
+}
+
+locals {
+  vm_name = "${var.prefix}-vm"
 }
 
 resource "azurerm_resource_group" "demo" {
@@ -14,7 +35,7 @@ resource "azurerm_resource_group" "demo" {
 }
 
 resource "azurerm_storage_account" "state" {
-  name                            = "testbmw1234storage"
+  name                            = "test${var.prefix}1234storage"
   location                        = azurerm_resource_group.demo.location
   resource_group_name             = azurerm_resource_group.demo.name
   account_tier                    = "Standard"
@@ -35,6 +56,53 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = azurerm_resource_group.demo.name
 }
 
+resource "azurerm_network_security_group" "internal" {
+  name                = "${var.prefix}-internal-nsg"
+  location            = azurerm_resource_group.demo.location
+  resource_group_name = azurerm_resource_group.demo.name
+
+  security_rule {
+    name                       = "Allow-SSH"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Allow-HTTP"
+    priority                   = 101
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Allow-HTTPS"
+    priority                   = 102
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "internal" {
+  subnet_id                 = azurerm_subnet.internal.id
+  network_security_group_id = azurerm_network_security_group.internal.id
+}
+
 resource "azurerm_subnet" "internal" {
   name                 = "internal"
   resource_group_name  = azurerm_resource_group.demo.name
@@ -42,45 +110,25 @@ resource "azurerm_subnet" "internal" {
   address_prefixes     = ["10.0.2.0/24"]
 }
 
-resource "azurerm_network_interface" "main" {
-  name                = "${var.prefix}-nic"
+module "audiocodes_vm1" {
+  source              = "./modules/virtualmachine"
   location            = azurerm_resource_group.demo.location
   resource_group_name = azurerm_resource_group.demo.name
-
-  ip_configuration {
-    name                          = "testconfiguration1"
-    subnet_id                     = azurerm_subnet.internal.id
-    private_ip_address_allocation = "Dynamic"
-  }
+  subnet_id           = azurerm_subnet.internal.id
 }
 
-resource "azurerm_virtual_machine" "ubuntu" {
-  name                  = "testbmw1234vm"
-  location              = azurerm_resource_group.demo.location
-  resource_group_name   = azurerm_resource_group.demo.name
-  network_interface_ids = [azurerm_network_interface.main.id]
-  vm_size               = "Standard_DS1_v2"
+module "audiocodes_vm2" {
+  source              = "./modules/virtualmachine"
+  location            = azurerm_resource_group.demo.location
+  prefix              = "bmw2"
+  resource_group_name = azurerm_resource_group.demo.name
+  subnet_id           = azurerm_subnet.internal.id
+}
 
-  storage_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-
-  os_profile {
-    admin_username = "azureuser"
-    admin_password = "uiHi6er8halai0sieti5"
-    computer_name  = "ubuntu"
-  }
-
-  storage_os_disk {
-    name          = "testbmw1234osdisk"
-    caching       = "ReadWrite"
-    create_option = "FromImage"
-  }
-
-  os_profile_linux_config {
-    disable_password_authentication = false
-  }
+output "initial_admin_passwords" {
+  sensitive = true
+  value = [
+    module.audiocodes_vm1.initial_admin_password,
+    module.audiocodes_vm2.initial_admin_password
+  ]
 }
